@@ -164,6 +164,7 @@ public class Session implements ISession {
   public void accept(SessionEvents eventHandler) {
     this.events = eventHandler;
     dispatcher.setEventHandler(eventHandler);
+    communicator.setSessionId(sessionId);
     communicator.accept(new CommunicatorEventHandler());
   }
 

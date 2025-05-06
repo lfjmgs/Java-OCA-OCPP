@@ -28,6 +28,7 @@ package eu.chargetime.ocpp;
 import eu.chargetime.ocpp.feature.profile.Profile;
 import eu.chargetime.ocpp.feature.profile.ServerCoreProfile;
 import eu.chargetime.ocpp.model.Confirmation;
+import eu.chargetime.ocpp.model.DisconnectionInformation;
 import eu.chargetime.ocpp.model.Request;
 import eu.chargetime.ocpp.wss.BaseWssFactoryBuilder;
 import eu.chargetime.ocpp.wss.WssFactoryBuilder;
@@ -51,9 +52,10 @@ public class JSONServer implements IServerAPI {
   public final Draft draftOcppOnly;
   private final WebSocketListener listener;
   private final Server server;
-  private final FeatureRepository featureRepository;
-  private JSONConfiguration jsonConfiguration;
 
+  private final FeatureRepository featureRepository;
+
+  private JSONConfiguration jsonConfiguration;
   /**
    * The core feature profile is required as a minimum. The constructor creates WS-ready server.
    *
@@ -67,7 +69,7 @@ public class JSONServer implements IServerAPI {
     ArrayList<IProtocol> protocols = new ArrayList<>();
     protocols.add(new Protocol("ocpp1.6"));
     protocols.add(new Protocol(""));
-    draftOcppOnly = new Draft_6455(Collections.emptyList(), protocols);
+    draftOcppOnly = new MyDraft_6455(Collections.emptyList(), protocols);
 
     if(configuration.getParameter(JSONConfiguration.HTTP_HEALTH_CHECK_ENABLED, true)) {
       logger.info("JSONServer 1.6 with HttpHealthCheckDraft");
@@ -77,6 +79,10 @@ public class JSONServer implements IServerAPI {
     }
     server = new Server(this.listener, new PromiseRepository());
     featureRepository.addFeatureProfile(coreProfile);
+  }
+
+  public FeatureRepository getFeatureRepository() {
+    return featureRepository;
   }
 
   /**
@@ -166,6 +172,10 @@ public class JSONServer implements IServerAPI {
   @Override
   public boolean isClosed() {
     return listener.isClosed();
+  }
+
+  public DisconnectionInformation removeDisconnectionInformation(UUID sessionId) {
+    return listener.removeDisconnectionInformation(sessionId);
   }
 
   @Override

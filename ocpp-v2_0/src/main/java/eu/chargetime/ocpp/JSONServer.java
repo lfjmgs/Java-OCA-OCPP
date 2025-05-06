@@ -27,6 +27,7 @@ package eu.chargetime.ocpp;
 
 import eu.chargetime.ocpp.feature.Feature;
 import eu.chargetime.ocpp.model.Confirmation;
+import eu.chargetime.ocpp.model.DisconnectionInformation;
 import eu.chargetime.ocpp.model.Request;
 import eu.chargetime.ocpp.wss.BaseWssFactoryBuilder;
 import eu.chargetime.ocpp.wss.WssFactoryBuilder;
@@ -148,6 +149,10 @@ public class JSONServer implements IServerAPI {
   @Override
   public boolean isClosed() {
     return listener.isClosed();
+  }
+
+  public DisconnectionInformation removeDisconnectionInformation(UUID sessionId) {
+    return listener.removeDisconnectionInformation(sessionId);
   }
 
   @Override

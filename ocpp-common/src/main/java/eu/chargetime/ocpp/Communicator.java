@@ -30,6 +30,7 @@ SOFTWARE.
 import eu.chargetime.ocpp.model.*;
 import eu.chargetime.ocpp.utilities.SugarUtil;
 import java.util.ArrayDeque;
+import java.util.UUID;
 import javax.xml.soap.SOAPMessage;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -44,11 +45,18 @@ import org.w3c.dom.Document;
 public abstract class Communicator {
   private static final Logger logger = LoggerFactory.getLogger(Communicator.class);
 
+  private static MessageListener messageListener;
+
   private RetryRunner retryRunner;
   protected Radio radio;
   private ArrayDeque<Object> transactionQueue;
   private CommunicatorEvents events;
   private boolean failedFlag;
+  private UUID sessionId;
+
+  public static void setMessageListener(MessageListener messageListener) {
+    Communicator.messageListener = messageListener;
+  }
 
   /**
    * Convert a formatted string into a {@link Request}/{@link Confirmation}. This is useful for call
@@ -193,6 +201,7 @@ public abstract class Communicator {
         processTransactionQueue();
       } else {
         radio.send(call);
+        onSendMessage(sessionId, call, parse(call));
       }
     } catch (NotConnectedException ex) {
       logger.warn("sendCall() failed: not connected");
@@ -216,7 +225,9 @@ public abstract class Communicator {
    */
   public void sendCallResult(String uniqueId, String action, Confirmation confirmation) {
     try {
-      radio.send(makeCallResult(uniqueId, action, packPayload(confirmation)));
+      Object message = makeCallResult(uniqueId, action, packPayload(confirmation));
+      radio.send(message);
+      onSendMessage(sessionId, message, parse(message));
 
       ConfirmationCompletedHandler completedHandler = confirmation.getCompletedHandler();
 
@@ -257,7 +268,9 @@ public abstract class Communicator {
         errorCode,
         errorDescription);
     try {
-      radio.send(makeCallError(uniqueId, action, errorCode, errorDescription));
+      Object message = makeCallError(uniqueId, action, errorCode, errorDescription);
+      radio.send(message);
+      onSendMessage(sessionId, message, parse(message));
     } catch (NotConnectedException ex) {
       logger.warn("sendCallError() failed", ex);
       events.onError(
@@ -282,6 +295,10 @@ public abstract class Communicator {
     }
   }
 
+  public void setSessionId(UUID sessionId) {
+    this.sessionId = sessionId;
+  }
+
   private class EventHandler implements RadioEvents {
     private final CommunicatorEvents events;
 
@@ -298,6 +315,7 @@ public abstract class Communicator {
     @Override
     public void receivedMessage(Object input) {
       Message message = parse(input);
+      onReceivedMessage(sessionId, input, message);
       if (message != null) {
         Object payload = message.getPayload();
         if (payload instanceof Document) {
@@ -360,6 +378,7 @@ public abstract class Communicator {
         while ((call = getRetryMessage()) != null) {
           failedFlag = false;
           radio.send(call);
+          onSendMessage(sessionId, call, parse(call));
           Thread.sleep(DELAY_IN_MILLISECONDS);
           if (!hasFailed()) popRetryMessage();
         }
@@ -367,5 +386,22 @@ public abstract class Communicator {
         logger.warn("RetryRunner::run() failed", ex);
       }
     }
+  }
+
+  private static void onReceivedMessage(UUID sessionId, Object original, Message message) {
+    if (Communicator.messageListener != null) {
+      Communicator.messageListener.onReceivedMessage(sessionId, original, message);
+    }
+  }
+
+  private static void onSendMessage(UUID sessionId, Object original, Message message) {
+    if (Communicator.messageListener != null) {
+      Communicator.messageListener.onSendMessage(sessionId, original, message);
+    }
+  }
+
+  public interface MessageListener {
+    void onReceivedMessage(UUID sessionId, Object original, Message message);
+    void onSendMessage(UUID sessionId, Object original, Message message);
   }
 }

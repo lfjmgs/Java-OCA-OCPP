@@ -105,6 +105,10 @@ public class JSONCommunicator extends Communicator {
     }
   }
 
+  public static void setGson(Gson gson) {
+    JSONCommunicator.gson = gson;
+  }
+
   private static Gson gson;
 
   static {

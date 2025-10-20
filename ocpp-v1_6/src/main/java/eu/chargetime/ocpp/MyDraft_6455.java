@@ -49,8 +49,10 @@ public class MyDraft_6455 extends Draft_6455 {
         try {
             return super.translateFrame(buffer);
         } catch (InvalidDataException e) {
-            String hex = byteBufferToHex(duplicate);
-            logger.error("translateFrame: {}", hex, e);
+            if (logger.isDebugEnabled()) {
+                String hex = byteBufferToHex(duplicate);
+                logger.debug("translateFrame-InvalidDataException: {}", hex);
+            }
             throw e;
         }
     }

@@ -30,6 +30,7 @@ package eu.chargetime.ocpp;
 import eu.chargetime.ocpp.feature.function.Function;
 import eu.chargetime.ocpp.feature.profile.Profile;
 import eu.chargetime.ocpp.model.Confirmation;
+import eu.chargetime.ocpp.model.DisconnectionInformation;
 import eu.chargetime.ocpp.model.Request;
 import eu.chargetime.ocpp.wss.BaseWssFactoryBuilder;
 import eu.chargetime.ocpp.wss.WssFactoryBuilder;
@@ -77,9 +78,9 @@ public class MultiProtocolJSONServer implements IMultiProtocolServerAPI {
       logger.info("JSONServer with HttpHealthCheckDraft");
       listener =
           new MultiProtocolWebSocketListener(
-              sessionFactory, configuration, draft, new Draft_HttpHealthCheck());
+              sessionFactory, featureRepository, configuration, draft, new Draft_HttpHealthCheck());
     } else {
-      listener = new MultiProtocolWebSocketListener(sessionFactory, configuration, draft);
+      listener = new MultiProtocolWebSocketListener(sessionFactory, featureRepository, configuration, draft);
     }
     server = new Server(listener, new PromiseRepository());
   }
@@ -199,5 +200,13 @@ public class MultiProtocolJSONServer implements IMultiProtocolServerAPI {
   public boolean asyncCompleteRequest(UUID sessionIndex, String uniqueId, Confirmation confirmation)
       throws NotConnectedException, UnsupportedFeatureException, OccurenceConstraintException {
     return server.asyncCompleteRequest(sessionIndex, uniqueId, confirmation);
+  }
+
+  public MultiProtocolFeatureRepository getFeatureRepository() {
+    return featureRepository;
+  }
+
+  public DisconnectionInformation removeDisconnectionInformation(UUID sessionId) {
+    return listener.removeDisconnectionInformation(sessionId);
   }
 }

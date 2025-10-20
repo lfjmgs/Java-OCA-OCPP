@@ -27,15 +27,13 @@
 
 package eu.chargetime.ocpp;
 
+import eu.chargetime.ocpp.model.DisconnectionInformation;
 import eu.chargetime.ocpp.model.SessionInformation;
 import eu.chargetime.ocpp.wss.WssFactoryBuilder;
 import java.net.ConnectException;
 import java.net.InetSocketAddress;
 import java.nio.charset.StandardCharsets;
-import java.util.Arrays;
-import java.util.Base64;
-import java.util.List;
-import java.util.Map;
+import java.util.*;
 import java.util.concurrent.ConcurrentHashMap;
 import org.java_websocket.WebSocket;
 import org.java_websocket.drafts.Draft;
@@ -63,23 +61,29 @@ public class MultiProtocolWebSocketListener implements Listener {
   private static final String HTTP_HEADER_PROXIED_ADDRESS = "X-Forwarded-For";
 
   private final MultiProtocolSessionFactory sessionFactory;
+  private final MultiProtocolFeatureRepository featureRepository;
   private final List<Draft> drafts;
 
   private final JSONConfiguration configuration;
   private final Map<WebSocket, WebSocketReceiver> sockets;
+  private final Map<UUID, DisconnectionInformation> disconnectionInformations;
+  private final Map<WebSocket, UUID> sessionIds;
   private volatile WebSocketServer server;
   private WssFactoryBuilder wssFactoryBuilder;
   private volatile boolean closed = true;
   private boolean handleRequestAsync;
 
   public MultiProtocolWebSocketListener(
-      MultiProtocolSessionFactory sessionFactory,
-      JSONConfiguration configuration,
-      Draft... drafts) {
+          MultiProtocolSessionFactory sessionFactory,
+          MultiProtocolFeatureRepository featureRepository, JSONConfiguration configuration,
+          Draft... drafts) {
     this.sessionFactory = sessionFactory;
+    this.featureRepository = featureRepository;
     this.configuration = configuration;
     this.drafts = Arrays.asList(drafts);
     this.sockets = new ConcurrentHashMap<>();
+    this.disconnectionInformations = new ConcurrentHashMap<>();
+    this.sessionIds = new ConcurrentHashMap<>();
   }
 
   @Override
@@ -125,6 +129,7 @@ public class MultiProtocolWebSocketListener implements Listener {
             sockets.put(webSocket, receiver);
 
             ProtocolVersion protocolVersion = ProtocolVersion.fromSubProtocolName(protocol);
+            featureRepository.selectProtocolVersion(protocolVersion);
             String proxiedAddress = clientHandshake.getFieldValue(HTTP_HEADER_PROXIED_ADDRESS);
 
             logger.debug(
@@ -140,9 +145,9 @@ public class MultiProtocolWebSocketListener implements Listener {
                     .ProxiedAddress(proxiedAddress)
                     .build();
 
-            handler.newSession(
-                sessionFactory.createSession(new JSONCommunicator(receiver), protocolVersion),
-                information);
+            ISession session = sessionFactory.createSession(new JSONCommunicator(receiver), protocolVersion);
+            sessionIds.put(webSocket, session.getSessionId());
+            handler.newSession(session, information);
           }
 
           @Override
@@ -217,9 +222,13 @@ public class MultiProtocolWebSocketListener implements Listener {
                 remote);
 
             if (code == Draft_HttpHealthCheck.HTTP_HEALTH_CHECK_CLOSE_CODE) return;
-
+            featureRepository.selectProtocolVersion(null);
             WebSocketReceiver receiver = sockets.get(webSocket);
             if (receiver != null) {
+              UUID sessionId = sessionIds.get(webSocket);
+              if (sessionId != null) {
+                disconnectionInformations.put(sessionId, new DisconnectionInformation(code, remote, reason));
+              }
               receiver.disconnect();
               sockets.remove(webSocket);
             } else {
@@ -315,5 +324,9 @@ public class MultiProtocolWebSocketListener implements Listener {
   @Override
   public void setAsyncRequestHandler(boolean async) {
     this.handleRequestAsync = async;
+  }
+
+  public DisconnectionInformation removeDisconnectionInformation(UUID sessionIndex) {
+    return disconnectionInformations.remove(sessionIndex);
   }
 }

@@ -264,7 +264,7 @@ public class WebSocketListener implements Listener {
 
   @Override
   public void close() {
-
+    logger.debug("Closing listener");
     if (server == null) {
       return;
     }
@@ -273,6 +273,7 @@ public class WebSocketListener implements Listener {
       server.stop(TIMEOUT_IN_MILLIS);
       sockets.clear();
     } catch (InterruptedException e) {
+      logger.error("Failed to close listener within timeout", e);
       // Do second try
       try {
         server.stop();
